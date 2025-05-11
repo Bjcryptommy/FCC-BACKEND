@@ -1,12 +1,15 @@
-# backend/routes/quiz_routes.py
-
 from flask import Blueprint, request, jsonify
 import sqlite3
+import os
 
 quiz_bp = Blueprint('quiz', __name__)
 
+# ✅ Use absolute DB path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, '../database.db')
+
 def get_db():
-    return sqlite3.connect('backend/database.db')
+    return sqlite3.connect(DB_PATH)
 
 # Add a question
 @quiz_bp.route('/questions', methods=['POST'])
@@ -73,28 +76,24 @@ def submit_answer():
     conn = get_db()
     cursor = conn.cursor()
 
-    # Get user ID
     cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
     user_row = cursor.fetchone()
     if not user_row:
         return jsonify({"error": "User not found"}), 404
     user_id = user_row[0]
 
-    # Get correct answer ID
     cursor.execute("SELECT correct_answer_id FROM questions WHERE id = ?", (question_id,))
     correct_row = cursor.fetchone()
     if not correct_row:
         return jsonify({"error": "Question not found"}), 404
     correct_answer_id = correct_row[0]
 
-    # Check if user already answered correctly
     cursor.execute("SELECT attempts, is_correct FROM user_attempts WHERE user_id = ? AND question_id = ?", (user_id, question_id))
     attempt = cursor.fetchone()
 
-    if attempt and attempt[1]:  # Already got it right
+    if attempt and attempt[1]:
         return jsonify({"message": "Already answered correctly"}), 200
 
-    # Increment attempts
     if attempt:
         attempts = attempt[0] + 1
         cursor.execute("UPDATE user_attempts SET attempts = ? WHERE user_id = ? AND question_id = ?", (attempts, user_id, question_id))
@@ -102,12 +101,9 @@ def submit_answer():
         attempts = 1
         cursor.execute("INSERT INTO user_attempts (user_id, question_id, attempts) VALUES (?, ?, ?)", (user_id, question_id, attempts))
 
-    # Check if answer is correct
     if selected_answer_id == correct_answer_id:
-        # Mark as correct
         cursor.execute("UPDATE user_attempts SET is_correct = 1 WHERE user_id = ? AND question_id = ?", (user_id, question_id))
 
-        # Calculate points
         if attempts == 1:
             points = 10
         elif attempts == 2:
@@ -117,7 +113,6 @@ def submit_answer():
         else:
             points = 0
 
-        # Add to user's total points
         cursor.execute("UPDATE users SET total_points = total_points + ? WHERE id = ?", (points, user_id))
 
         conn.commit()
@@ -140,7 +135,7 @@ def get_answers_for_question(question_id):
     answers = [{"id": row[0], "text": row[1]} for row in rows]
     return jsonify(answers)
 
-# ✅ NEW: Get Quiz by Lesson ID
+# ✅ Get Quiz by Lesson ID
 @quiz_bp.route('/quiz/<int:lesson_id>', methods=['GET'])
 def get_quiz_by_lesson(lesson_id):
     conn = get_db()
@@ -174,7 +169,6 @@ def get_user_progress(username):
     conn = get_db()
     cursor = conn.cursor()
 
-    # Get user ID
     cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
     user = cursor.fetchone()
     if not user:
@@ -208,4 +202,3 @@ def get_user_progress(username):
         })
 
     return jsonify(data)
-
