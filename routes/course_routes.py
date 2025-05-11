@@ -1,10 +1,15 @@
 from flask import Blueprint, request, jsonify
 import sqlite3
+import os
 
 course_bp = Blueprint('course', __name__)
 
+# ✅ Use absolute path for DB
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, '../database.db')
+
 def get_db():
-    return sqlite3.connect('backend/database.db')
+    return sqlite3.connect(DB_PATH)
 
 # ----------------------------------------
 # ✅ Add a new course (admin only)
@@ -12,7 +17,7 @@ def get_db():
 @course_bp.route('/courses', methods=['POST'])
 def add_course():
     data = request.get_json()
-    username = data.get('username')  # Who is adding
+    username = data.get('username')
     title = data.get('title')
     description = data.get('description')
     language = data.get('language', 'General')
@@ -27,7 +32,6 @@ def add_course():
     if not user or user[0] != 'admin':
         return jsonify({"error": "Only admins can add courses."}), 403
 
-    # Insert course with language
     cursor.execute(
         "INSERT INTO courses (title, description, language) VALUES (?, ?, ?)",
         (title, description, language)
