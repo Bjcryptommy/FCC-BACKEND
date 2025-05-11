@@ -1,11 +1,16 @@
 from flask import Blueprint, request, jsonify
 import sqlite3
+import os
+
+# ✅ Use absolute DB path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, '../database.db')
 
 # Set prefix here so endpoints become: /comments/...
 comment_bp = Blueprint('comments', __name__, url_prefix='/comments')
 
 def get_db():
-    return sqlite3.connect('backend/database.db')
+    return sqlite3.connect(DB_PATH)
 
 # 🔧 Create Comments Table
 def create_comment_table():
@@ -32,7 +37,7 @@ def post_comment():
     data = request.get_json()
     lesson_id = data.get('lesson_id')
     username = data.get('username')
-    text = data.get('text')  # 🟢 Must match frontend key
+    text = data.get('text')
 
     if not lesson_id or not username or not text:
         return jsonify({"error": "Missing lesson_id, username, or text"}), 400
