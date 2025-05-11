@@ -1,23 +1,25 @@
-# backend/routes/auth_routes.py
-
 from flask import Blueprint, request, jsonify
 import sqlite3
+import os
 
 auth_bp = Blueprint('auth', __name__)
 
+# ✅ Use absolute DB path for Render compatibility
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, '../database.db')
+
 def get_db():
-    return sqlite3.connect('backend/database.db')
+    return sqlite3.connect(DB_PATH)
 
 @auth_bp.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
     username = data.get('username')
     password = data.get('password')
-    role = data.get('role', 'student')  # default role is student
+    role = data.get('role', 'student')
 
     conn = get_db()
     cursor = conn.cursor()
-
     try:
         cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
                        (username, password, role))
@@ -28,7 +30,6 @@ def register():
     finally:
         conn.close()
 
-
 @auth_bp.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -38,7 +39,6 @@ def login():
     conn = get_db()
     cursor = conn.cursor()
 
-    # Check if user exists
     cursor.execute("SELECT password FROM users WHERE username=?", (username,))
     row = cursor.fetchone()
 
@@ -46,15 +46,13 @@ def login():
         conn.close()
         return jsonify({"error": "❌ Username does not exist."}), 404
 
-    stored_password = row[0]
-    if stored_password != password:
+    if row[0] != password:
         conn.close()
         return jsonify({"error": "❌ Incorrect password."}), 401
 
     conn.close()
     return jsonify({"message": "Login successful!"}), 200
 
-# Get Users List
 @auth_bp.route('/all-users', methods=['GET'])
 def all_users():
     conn = get_db()
@@ -64,7 +62,6 @@ def all_users():
     conn.close()
     return jsonify([{"username": u[0], "role": u[1]} for u in users])
 
-#GEt roles
 @auth_bp.route('/role/<username>', methods=['GET'])
 def get_user_role(username):
     conn = get_db()
@@ -72,7 +69,6 @@ def get_user_role(username):
     cursor.execute("SELECT role FROM users WHERE username = ?", (username,))
     row = cursor.fetchone()
     conn.close()
-
     if row:
         return jsonify({"role": row[0]})
     return jsonify({"error": "User not found"}), 404
@@ -84,16 +80,12 @@ def get_user_points(username):
     cursor.execute("SELECT total_points FROM users WHERE username = ?", (username,))
     row = cursor.fetchone()
     conn.close()
-
     return jsonify({"total_points": row[0] if row else 0})
-
 
 @auth_bp.route('/user-attempts/<username>')
 def get_user_attempts(username):
     conn = get_db()
     cursor = conn.cursor()
-
-    # Get user_id
     cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
     user = cursor.fetchone()
     if not user:
@@ -104,10 +96,8 @@ def get_user_attempts(username):
     rows = cursor.fetchall()
     conn.close()
 
-    result = [{"question_id": row[0], "attempts": row[1], "is_correct": bool(row[2])} for row in rows]
-    return jsonify(result)
+    return jsonify([{"question_id": row[0], "attempts": row[1], "is_correct": bool(row[2])} for row in rows])
 
-# Get user profile info
 @auth_bp.route('/user/<username>', methods=['GET'])
 def get_user_profile(username):
     conn = get_db()
@@ -115,13 +105,10 @@ def get_user_profile(username):
     cursor.execute("SELECT username, full_name FROM users WHERE username = ?", (username,))
     row = cursor.fetchone()
     conn.close()
-
     if row:
         return jsonify({"username": row[0], "full_name": row[1] or ""})
     return jsonify({"error": "User not found"}), 404
 
-
-# Update full_name or username
 @auth_bp.route('/update-profile', methods=['PUT'])
 def update_profile():
     data = request.get_json()
@@ -132,14 +119,12 @@ def update_profile():
     conn = get_db()
     cursor = conn.cursor()
 
-    # Check if username exists
     cursor.execute("SELECT id FROM users WHERE username = ?", (current_username,))
     row = cursor.fetchone()
     if not row:
         conn.close()
         return jsonify({"error": "User not found"}), 404
 
-    # Check if new username already taken (if changed)
     if new_username and new_username != current_username:
         cursor.execute("SELECT id FROM users WHERE username = ?", (new_username,))
         if cursor.fetchone():
@@ -154,8 +139,6 @@ def update_profile():
     conn.close()
     return jsonify({"message": "Profile updated!"}), 200
 
-
-# Change password
 @auth_bp.route('/change-password', methods=['PUT'])
 def change_password():
     data = request.get_json()
@@ -199,7 +182,6 @@ def leaderboard():
     cursor.execute("SELECT username, total_points FROM users ORDER BY total_points DESC")
     rows = cursor.fetchall()
     conn.close()
-
     return jsonify([
         {"username": row[0], "total_points": row[1] or 0}
         for row in rows
@@ -216,7 +198,6 @@ def delete_user(target_username):
     conn = get_db()
     cursor = conn.cursor()
 
-    # Check if the requesting user is an admin
     cursor.execute("SELECT role FROM users WHERE username = ?", (requesting_username,))
     row = cursor.fetchone()
 
@@ -232,10 +213,8 @@ def delete_user(target_username):
         conn.close()
         return jsonify({"error": "You cannot delete yourself"}), 403
 
-    # Delete the user
     cursor.execute("DELETE FROM users WHERE username = ?", (target_username,))
     conn.commit()
     conn.close()
 
     return jsonify({"message": f"User '{target_username}' has been deleted."}), 200
-
